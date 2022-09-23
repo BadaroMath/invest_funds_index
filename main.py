@@ -18,6 +18,12 @@ def config_log():
         datefmt='%Y-%m-%d %H:%M:%S')
 
 def save_csv(df, path):
+    """
+    Save dataframe in csv on the path.
+
+    Returns:
+        status {string}
+    """    
     print(f'Transform and save data into {path}')
     df.to_csv(
         path,
@@ -46,14 +52,10 @@ def get_closes_yf(tickers, date_begin):
 
 def get_price_index():
     """
-    Makes several requests to the API updating the offset.
-
-    Arguments:
-        token {string} -- the API access token
+    Makes requests to the IBGE API to get INPC and IPCA index.
 
     Returns:
-        all_leads {list of dict} -- list of all leads from the day before
-            contains the preselected fields in dict form
+        all_indices {dataframe} -- monthly index variation for INPC and IPCA.
     """
     inpc_report = requests.get(
         url=INPC_URL,
@@ -77,8 +79,12 @@ def get_price_index():
     return all_indices
 
 def get_igpm_index():
+    """
+    Makes a query on `the basedosdados.br_fgv_igp` to obtain the general price index monthly of FGV.
 
-    
+    Returns:
+        igpm {dataframe} -- monthly index variation for IGP-M.
+    """
     client = bigquery.Client(project='annular-welder-353913')
     query_job = client.query(
         """
@@ -104,8 +110,8 @@ def transform(data):
         data {list of dict} -- all indices retrieved from the IBGE API
 
     Returns:
-        df_indices {dataframe} -- sanitized leads,
-            ready to be uploaded to the database
+        df_indices {dataframe} -- sanitized index,
+            ready to be merged and saved.
     """
 
     log.info("Transforming leads")
@@ -138,13 +144,31 @@ def transform(data):
     return df_indices
 
 def merge_index(igpm, df_indices):
+    """
+    joins the tables with the INPC/IPCA and IGP-M indexes
 
+    Arguments:
+        igpm {dataframe} -- IGP-M index from FGV.
+        df_indices {dataframe} -- INPC/IPCA index from IBGE API.
+
+    Returns:
+        merged_index {dataframe} -- merged index 
+    """
     merged_index = pd.merge(igpm, df_indices, how="right", on = ["ano", "mes"])
 
     return merged_index
 
 def main():
+    """
+    Main function.
     
+    Variables:
+        date_begin {string, "%Y-%m-%d"}: Date to start getting the price of shares/funds on get_closes_yf().
+        tickers {List}: List of tickers to get the price of shares/funds on get_closes_yf()
+ 
+    Returns:
+        status code {numeric}
+    """    
     
     date_begin = "2022-01-01"
     tickers = ['^IXIC', "^BVSP", "^GSPC", "GC=F", "BRL=X", "IRFM11.SA", "IBRX"]
@@ -173,7 +197,6 @@ def main():
     return ("ok", 200)
 
 if __name__== "__main__":
-    
     os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = "bq_cred.json"
     main()
 
